@@ -14,7 +14,7 @@ Este projeto visa criar um chatbot que analisa o sentimento de textos fornecidos
 - Gradio
 
 ## Imagem do Projeto
-![Interface do Chatbot](.vscode/chatbot_interface.png)
+![Interface do Chatbot](https://imgur.com/a/ZDGeM7G)
 
 
 ## Como Executar o Projeto
