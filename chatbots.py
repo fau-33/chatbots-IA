@@ -1,6 +1,7 @@
-import google.generativeai as genai
 import os
 import gradio as gr
+from google.api_core import exceptions, retry
+import google.generativeai as genai
 from home_assistant import set_light_values, intruder_alert, start_music, good_morning
 
 # Configura a chave da API
@@ -20,8 +21,8 @@ initial_prompt = (
 )
 chat.send_message(initial_prompt)
 
-def analyze_sentiment(text):
-    # Função para analisar o sentimento do texto
+@retry.Retry(predicate=retry.if_exception_type(exceptions.ResourceExhausted))
+def analyze_sentiment_with_retry(text):
     sentiment_analysis_prompt = f"Analise o sentimento do seguinte texto: \"{text}\""
     response = chat.send_message(sentiment_analysis_prompt)
     return response.text
@@ -30,21 +31,34 @@ def gradio_wrapper(message, _history):
     text = message["text"]
     uploaded_files = []
     
-    # Processa arquivos anexados
     for file_info in message["files"]:
         file_path = file_info["path"]
-        with open(file_path, 'r', encoding='utf-8') as file:
-            file_content = file.read()
-            uploaded_files.append(file_content)
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                file_content = file.read()
+        except UnicodeDecodeError:
+            try:
+                with open(file_path, 'r', encoding='latin-1') as file:
+                    file_content = file.read()
+            except UnicodeDecodeError:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
+                    file_content = file.read()
+        
+        uploaded_files.append(file_content)
     
-    # Analisa o sentimento do texto da mensagem e dos arquivos
     results = []
     
     if text:
-        results.append(analyze_sentiment(text))
+        try:
+            results.append(analyze_sentiment_with_retry(text))
+        except Exception as e:
+            results.append(f"Erro ao analisar o texto: {str(e)}")
     
     for content in uploaded_files:
-        results.append(analyze_sentiment(content))
+        try:
+            results.append(analyze_sentiment_with_retry(content))
+        except Exception as e:
+            results.append(f"Erro ao analisar o arquivo: {str(e)}")
     
     return "\n".join(results)
 
